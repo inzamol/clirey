@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clirey"
+version = "0.1.0"
+description = "A powerful CLI & live terminal monitor for Celery with just a broker URL"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+    { name = "Inzam", email = "your-email@example.com" }
+]
+keywords = ["celery", "cli", "monitoring", "redis", "rabbitmq", "tui", "rich", "dashboard"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Monitoring",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+dependencies = [
+    "celery>=5.3.0",
+    "redis>=5.0.0",
+    "kombu>=5.3.0",
+    "amqp>=5.2.0",
+    "rich>=13.0.0",
+    "typer>=0.12.0",
+    "pydantic>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/inzam/clirey"
+Documentation = "https://github.com/inzam/clirey#readme"
+Repository = "https://github.com/inzam/clirey"
+Issues = "https://github.com/inzam/clirey/issues"
+
+[project.scripts]
+clirey = "clirey.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["clirey*"]
