@@ -1,12 +1,10 @@
 """Rich Console formatting, badges, and helper functions."""
 
 import datetime
-import io
-import os
 import sys
 from typing import Optional
+
 from rich.console import Console
-from rich.text import Text
 
 # Force UTF-8 on Windows consoles to prevent cp1252 charmap encode errors
 if sys.platform.startswith("win"):
@@ -20,7 +18,6 @@ if sys.platform.startswith("win"):
 
 console = Console(force_terminal=True, legacy_windows=False)
 err_console = Console(stderr=True, force_terminal=True, legacy_windows=False)
-
 
 
 def format_state_badge(state: str) -> str:
@@ -49,33 +46,34 @@ def format_event_badge(event_type: str) -> str:
     """Return colored badge for Celery event types."""
     et = (event_type or "").lower()
     if et == "task-succeeded":
-        return "[bold green]● SUCCEED[/]"
+        return "[bold green]SUCCEED[/]"
     elif et == "task-failed":
-        return "[bold red]✖ FAILED [/]"
+        return "[bold red]FAILED [/]"
     elif et == "task-started":
-        return "[bold cyan]▶ STARTED[/]"
+        return "[bold cyan]STARTED[/]"
     elif et == "task-received":
-        return "[bold yellow]↓ RECEIVE[/]"
+        return "[bold yellow]RECEIVE[/]"
     elif et == "task-retried":
-        return "[bold orange3]↺ RETRY  [/]"
+        return "[bold orange3]RETRY  [/]"
     elif et == "task-revoked":
-        return "[bold magenta]⊘ REVOKED[/]"
+        return "[bold magenta]REVOKED[/]"
     elif et == "worker-online":
-        return "[bold green]▲ W-UP   [/]"
+        return "[bold green]W-UP   [/]"
     elif et == "worker-offline":
-        return "[bold red]▼ W-DOWN [/]"
+        return "[bold red]W-DOWN [/]"
     elif et == "worker-heartbeat":
-        return "[dim cyan]♥ HEARTBT[/]"
+        return "[dim cyan]HEARTBT[/]"
     return f"[dim]{event_type}[/]"
 
 
 def format_worker_status(status: str) -> str:
-    """Format worker status with green/red dot."""
+    """Format worker status with text tag."""
     if status.upper() == "ONLINE":
-        return "[bold green]● ONLINE[/]"
+        return "[bold green]ONLINE[/]"
     elif status.upper() == "OFFLINE":
-        return "[bold red]○ OFFLINE[/]"
-    return f"[yellow]? {status}[/]"
+        return "[bold red]OFFLINE[/]"
+    return f"[yellow]{status}[/]"
+
 
 
 def format_duration(seconds: Optional[float]) -> str:

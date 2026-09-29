@@ -51,3 +51,12 @@ clirey = "clirey.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["clirey*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+

@@ -7,8 +7,10 @@ import logging
 import threading
 import time
 from typing import Callable, Deque, Dict, List, Optional
+
 from celery.events import EventReceiver
 from celery.events.state import State
+
 from clirey.core.client import CeleryClient
 from clirey.core.models import ClusterOverview, EventRecord, TaskInfo
 
@@ -73,7 +75,7 @@ class EventMonitor:
                             # Drain events with a 1 second timeout
                             recv.drain_nowait()
                             time.sleep(0.05)
-                        except (AttributeError, Exception) as e:
+                        except (AttributeError, Exception):
                             # If no messages ready, wait briefly
                             time.sleep(0.2)
             except Exception as e:

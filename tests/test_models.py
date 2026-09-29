@@ -1,6 +1,6 @@
 """Tests for Pydantic models in Clirey."""
 
-from clirey.core.models import EventRecord, QueueInfo, TaskInfo, WorkerInfo
+from clirey.core.models import QueueInfo, TaskInfo, WorkerInfo
 
 
 def test_worker_info_model():

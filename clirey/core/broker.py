@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
+
 from kombu import Connection
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ class BrokerInspector:
         if self.is_redis():
             try:
                 import redis
+
                 r = redis.from_url(self.broker_url, socket_timeout=2.0)
                 pipe = r.pipeline()
                 for q in queue_names:
@@ -93,12 +95,17 @@ class BrokerInspector:
         if self.is_redis():
             try:
                 import redis
+
                 r = redis.from_url(self.broker_url, socket_timeout=2.0)
                 # Scan for standard Celery list keys
                 for key in r.scan_iter(match="*", count=100):
                     key_str = key.decode("utf-8") if isinstance(key, bytes) else str(key)
                     # Ignore Celery internal event/unack/set keys
-                    if key_str.startswith("_kombu") or "celery-task-meta" in key_str or key_str.startswith("celery.pidbox"):
+                    if (
+                        key_str.startswith("_kombu")
+                        or "celery-task-meta" in key_str
+                        or key_str.startswith("celery.pidbox")
+                    ):
                         continue
                     key_type = r.type(key)
                     type_str = key_type.decode("utf-8") if isinstance(key_type, bytes) else str(key_type)

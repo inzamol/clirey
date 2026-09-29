@@ -1,6 +1,7 @@
 """Tests for Typer CLI commands using CliRunner."""
 
 from typer.testing import CliRunner
+
 from clirey.cli import app
 
 runner = CliRunner()

@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse, urlunparse
+
 from pydantic import BaseModel, Field
 
 
@@ -30,6 +31,7 @@ def mask_broker_url(url: str) -> str:
 
 class ClireyConfig(BaseModel):
     """Clirey configuration settings."""
+
     broker_url: str = Field(default="redis://localhost:6379/0", description="Celery broker connection URL")
     result_backend: Optional[str] = Field(default=None, description="Optional Celery result backend URL")
     refresh_rate: float = Field(default=1.5, description="Dashboard refresh rate in seconds")
@@ -67,6 +69,7 @@ class ClireyConfig(BaseModel):
             if p.exists() and p.is_file():
                 try:
                     import json
+
                     data = json.loads(p.read_text(encoding="utf-8"))
                     if "broker_url" in data and data["broker_url"]:
                         return str(data["broker_url"]).strip()

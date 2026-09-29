@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import datetime
 from typing import List, Optional
+
 from rich import box
 from rich.table import Table
+
 from clirey.core.models import EventRecord, QueueInfo, TaskInfo, WorkerInfo
 from clirey.ui.console import (
     format_duration,

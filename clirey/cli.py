@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Optional
 
@@ -13,17 +12,22 @@ if sys.platform.startswith("win"):
         pass
 
 import time
+
 import typer
 from rich.panel import Panel
-from rich.text import Text
+
 from clirey.config import ClireyConfig, mask_broker_url
 from clirey.core.client import CeleryClient
 from clirey.core.events import EventMonitor
+from clirey.core.validation import (
+    test_broker_connectivity,
+    validate_broker_url,
+    validate_task_id,
+)
 from clirey.mock.simulator import MockDashboard
 from clirey.ui.console import console, err_console, format_event_badge
 from clirey.ui.dashboard import Dashboard
 from clirey.ui.tables import (
-    create_events_table,
     create_queues_table,
     create_tasks_table,
     create_workers_table,
@@ -36,7 +40,6 @@ app = typer.Typer(
 )
 
 
-
 def get_resolved_broker(broker: Optional[str]) -> str:
     """Resolve and validate broker URL."""
     resolved = ClireyConfig.resolve_broker_url(broker)
@@ -46,7 +49,70 @@ def get_resolved_broker(broker: Optional[str]) -> str:
             "Provide it via [bold yellow]--broker <url>[/] or set the [bold yellow]CELERY_BROKER_URL[/] environment variable."
         )
         raise typer.Exit(code=1)
+
+    is_valid, msg = validate_broker_url(resolved)
+    if not is_valid:
+        err_console.print(f"[bold red]Invalid Broker URL:[/] {msg}")
+        raise typer.Exit(code=1)
+
     return resolved
+
+
+@app.command(name="validate")
+@app.command(name="check")
+def cmd_validate(
+    broker: Optional[str] = typer.Option(None, "--broker", "-b", help="Celery broker URL to check"),
+    timeout: float = typer.Option(3.0, "--timeout", "-t", help="Connection timeout in seconds"),
+):
+    """Run preflight diagnostics and connectivity verification on the Celery broker."""
+    raw_broker = ClireyConfig.resolve_broker_url(broker)
+    masked = mask_broker_url(raw_broker)
+
+    console.print(f"\n[bold bright_cyan]Preflight Diagnostics for Broker:[/] {masked}\n")
+
+    # Step 1: URL Syntax & Scheme Check
+    is_valid, url_msg = validate_broker_url(raw_broker)
+    if not is_valid:
+        console.print(f"  [bold red][FAIL][/] [bold red]URL Syntax:[/] {url_msg}")
+        raise typer.Exit(code=1)
+    console.print(f"  [bold green][OK][/] [bold green]URL Syntax:[/] {url_msg}")
+
+    # Step 2: Protocol Connectivity Test
+    with console.status("[bold cyan]Testing broker connectivity...[/]", spinner="dots"):
+        is_connected, conn_msg, details = test_broker_connectivity(raw_broker, timeout=timeout)
+
+    if not is_connected:
+        console.print(f"  [bold red][FAIL][/] [bold red]Broker Reachability:[/] {conn_msg}")
+        if details.get("host") and details.get("port"):
+            console.print(f"     [dim]Target: {details['host']}:{details['port']} ({details['scheme']})[/]")
+        raise typer.Exit(code=1)
+
+    latency_str = f"({details['latency_ms']:.1f}ms)" if details.get("latency_ms") else ""
+    console.print(f"  [bold green][OK][/] [bold green]Broker Reachability:[/] Connected successfully {latency_str}")
+
+    # Step 3: Worker Ping Inspection
+    client = CeleryClient(broker_url=raw_broker, timeout=timeout)
+    with console.status("[bold cyan]Scanning for active workers...[/]", spinner="dots"):
+        t_ping = time.perf_counter()
+        pings = client.ping()
+        ping_latency = (time.perf_counter() - t_ping) * 1000
+
+    if pings:
+        worker_count = len(pings)
+        console.print(f"  [bold green][OK][/] [bold green]Worker Cluster:[/] Found {worker_count} active worker(s) ({ping_latency:.1f}ms)")
+        for w_name in pings:
+            console.print(f"     - [cyan]{w_name}[/]")
+    else:
+        console.print("  [bold yellow][WARN][/] [bold yellow]Worker Cluster:[/] Broker is reachable, but 0 workers responded (workers may be stopped or idle).")
+
+    # Step 4: Queue Discovery
+    queues = client.get_queues()
+    queue_names = [q.name for q in queues]
+    console.print(f"  [bold green][OK][/] [bold green]Broker Queues:[/] {len(queues)} queue(s) detected: {', '.join(queue_names)}")
+
+    console.print("\n[bold green]All preflight checks passed.[/] Ready to monitor with [bold cyan]clirey top[/].\n")
+
+
 
 
 @app.command(name="top")
@@ -172,7 +238,7 @@ def cmd_events(
 ):
     """Stream real-time Celery events to standard output."""
     broker_url = get_resolved_broker(broker)
-    console.print(f"[bold cyan]⚡ Streaming live Celery events from:[/] {mask_broker_url(broker_url)}")
+    console.print(f"[bold cyan]Streaming live Celery events from:[/] {mask_broker_url(broker_url)}")
     console.print("[dim]Press Ctrl+C to stop streaming.\n[/]")
 
     client = CeleryClient(broker_url=broker_url)
@@ -185,9 +251,11 @@ def cmd_events(
         worker = f"@{ev.worker}" if ev.worker else ""
         badge = format_event_badge(ev.event_type)
 
-        console.print(f"[dim]{t_str}[/]  {badge}  [bold yellow]{task_name}[/] [dim]{tid}[/] [cyan]{worker}[/] [green]{dur}[/]")
+        console.print(
+            f"[dim]{t_str}[/]  {badge}  [bold yellow]{task_name}[/] [dim]{tid}[/] [cyan]{worker}[/] [green]{dur}[/]"
+        )
         if ev.exception:
-            console.print(f"       [red]└─ Error: {ev.exception}[/]")
+            console.print(f"       [red]Error: {ev.exception}[/]")
 
     monitor = EventMonitor(client, on_event_callback=on_event)
     monitor.start()
@@ -215,12 +283,12 @@ def cmd_ping(
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
     if not res:
-        console.print("[bold red]✖ No response from any worker.[/]")
+        console.print("[bold red][FAIL] No response from any worker.[/]")
         raise typer.Exit(code=1)
 
-    console.print(f"[bold green]✔ Received responses in {elapsed_ms:.1f}ms:[/]")
+    console.print(f"[bold green][OK] Received responses in {elapsed_ms:.1f}ms:[/]")
     for worker, reply in res.items():
-        console.print(f"  • [bold cyan]{worker}:[/] [green]{reply}[/]")
+        console.print(f"  - [bold cyan]{worker}:[/] [green]{reply}[/]")
 
 
 @app.command(name="task")
@@ -230,6 +298,11 @@ def cmd_task(
     backend: Optional[str] = typer.Option(None, "--backend", help="Optional result backend URL"),
 ):
     """Query a specific task across workers and result backend."""
+    is_valid, msg = validate_task_id(task_id)
+    if not is_valid:
+        err_console.print(f"[bold red]Invalid Task ID:[/] {msg}")
+        raise typer.Exit(code=1)
+
     broker_url = get_resolved_broker(broker)
     client = CeleryClient(broker_url=broker_url, backend_url=backend)
 
@@ -244,9 +317,16 @@ def cmd_revoke(
     task_id: str = typer.Argument(..., help="Celery task UUID to revoke"),
     broker: Optional[str] = typer.Option(None, "--broker", "-b", help="Celery broker URL"),
     terminate: bool = typer.Option(False, "--terminate", "-t", help="Terminate currently executing task process"),
-    signal: str = typer.Option("SIGTERM", "--signal", "-s", help="Signal to send when terminating (e.g. SIGTERM, SIGKILL)"),
+    signal: str = typer.Option(
+        "SIGTERM", "--signal", "-s", help="Signal to send when terminating (e.g. SIGTERM, SIGKILL)"
+    ),
 ):
     """Revoke or terminate a Celery task by ID."""
+    is_valid, msg = validate_task_id(task_id)
+    if not is_valid:
+        err_console.print(f"[bold red]Invalid Task ID:[/] {msg}")
+        raise typer.Exit(code=1)
+
     broker_url = get_resolved_broker(broker)
     client = CeleryClient(broker_url=broker_url)
 
@@ -258,7 +338,9 @@ def cmd_revoke(
     with console.status(f"[bold cyan]Revoking task {task_id}...[/]", spinner="dots"):
         res = client.revoke_task(task_id, terminate=terminate, signal=signal)
 
-    console.print(f"[bold green]✔ Revoke broadcast sent.[/] Replies: {res}")
+    console.print(f"[bold green][OK] Revoke broadcast sent.[/] Replies: {res}")
+
+
 
 
 def main():

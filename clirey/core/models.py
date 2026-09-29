@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import time
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
 class WorkerInfo(BaseModel):
     """Detailed worker state and metrics."""
+
     name: str
     status: str = "ONLINE"  # ONLINE, OFFLINE, UNRESPONSIVE
     active_tasks_count: int = 0
@@ -31,6 +33,7 @@ class WorkerInfo(BaseModel):
 
 class TaskInfo(BaseModel):
     """Information regarding a Celery task."""
+
     task_id: str
     name: str = "unknown"
     worker: Optional[str] = None
@@ -59,6 +62,7 @@ class TaskInfo(BaseModel):
 
 class QueueInfo(BaseModel):
     """Queue metrics from broker and worker perspectives."""
+
     name: str
     consumer_count: int = 0
     pending_messages: Optional[int] = None  # Direct broker inspection count (LLEN / AMQP)
@@ -67,6 +71,7 @@ class QueueInfo(BaseModel):
 
 class EventRecord(BaseModel):
     """A captured event from Celery event stream."""
+
     timestamp: float = Field(default_factory=time.time)
     event_type: str  # task-started, task-succeeded, task-failed, worker-heartbeat, etc.
     worker: Optional[str] = None
@@ -79,6 +84,7 @@ class EventRecord(BaseModel):
 
 class ClusterOverview(BaseModel):
     """Aggregated cluster metrics."""
+
     total_workers: int = 0
     online_workers: int = 0
     active_tasks: int = 0

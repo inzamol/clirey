@@ -1,13 +1,11 @@
 """Mock simulator for testing and demonstrating Clirey UI without a live cluster."""
 
-from typing import Optional
-
-
 import random
 import threading
 import time
 import uuid
-from typing import List
+from typing import List, Optional
+
 from clirey.core.models import EventRecord, QueueInfo, TaskInfo, WorkerInfo
 from clirey.ui.dashboard import Dashboard
 
@@ -170,6 +168,7 @@ class MockDashboard(Dashboard):
     def run(self) -> None:
         """Run simulated dashboard."""
         from rich.live import Live
+
         from clirey.core.models import ClusterOverview
         from clirey.ui.console import console
 

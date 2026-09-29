@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any, Dict, List, Optional
+
 from celery import Celery
+
 from clirey.core.broker import BrokerInspector
 from clirey.core.models import QueueInfo, TaskInfo, WorkerInfo
 

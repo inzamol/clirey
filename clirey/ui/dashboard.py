@@ -5,12 +5,14 @@ from __future__ import annotations
 import datetime
 import time
 from typing import Optional
+
 from rich import box
 from rich.align import Align
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
+
 from clirey.config import mask_broker_url
 from clirey.core.client import CeleryClient
 from clirey.core.events import EventMonitor
@@ -47,10 +49,13 @@ class Dashboard:
         active_count = len(active_tasks)
 
         grid = Text()
-        grid.append(" ⚡ CLIREY ", style="bold black on bright_cyan")
+        grid.append(" CLIREY ", style="bold black on bright_cyan")
         grid.append(f"  Broker: {self.masked_url}", style="bold white")
+
         grid.append("  │  ")
-        grid.append(f"Workers: {online_count}/{total_workers} Online", style="bold green" if online_count > 0 else "bold red")
+        grid.append(
+            f"Workers: {online_count}/{total_workers} Online", style="bold green" if online_count > 0 else "bold red"
+        )
         grid.append("  │  ")
         grid.append(f"Active Tasks: {active_count}", style="bold cyan")
         grid.append("  │  ")
@@ -58,7 +63,9 @@ class Dashboard:
         grid.append("  │  ")
         grid.append(f"Processed: {overview.total_processed_tasks:,}", style="bold green")
         grid.append("  │  ")
-        grid.append(f"Failed: {overview.failed_tasks_count:,}", style="bold red" if overview.failed_tasks_count > 0 else "dim")
+        grid.append(
+            f"Failed: {overview.failed_tasks_count:,}", style="bold red" if overview.failed_tasks_count > 0 else "dim"
+        )
         grid.append("  │  ")
         grid.append(f"{now_str}", style="dim")
 
@@ -120,24 +127,16 @@ class Dashboard:
         layout["footer"].update(self._make_footer())
 
         workers_table = create_workers_table(workers, title=f"Workers ({len(workers)})")
-        layout["body"]["top_half"]["workers"].update(
-            Panel(workers_table, box=box.ROUNDED, border_style="cyan")
-        )
+        layout["body"]["top_half"]["workers"].update(Panel(workers_table, box=box.ROUNDED, border_style="cyan"))
 
         queues_table = create_queues_table(queues, title=f"Queues ({len(queues)})")
-        layout["body"]["top_half"]["queues"].update(
-            Panel(queues_table, box=box.ROUNDED, border_style="yellow")
-        )
+        layout["body"]["top_half"]["queues"].update(Panel(queues_table, box=box.ROUNDED, border_style="yellow"))
 
         tasks_table = create_tasks_table(active_tasks, title=f"Currently Running Tasks ({len(active_tasks)})")
-        layout["body"]["bottom_half"]["tasks"].update(
-            Panel(tasks_table, box=box.ROUNDED, border_style="green")
-        )
+        layout["body"]["bottom_half"]["tasks"].update(Panel(tasks_table, box=box.ROUNDED, border_style="green"))
 
         events_table = create_events_table(events, title="Live Event Feed (Recent)")
-        layout["body"]["bottom_half"]["events"].update(
-            Panel(events_table, box=box.ROUNDED, border_style="magenta")
-        )
+        layout["body"]["bottom_half"]["events"].update(Panel(events_table, box=box.ROUNDED, border_style="magenta"))
 
         return layout
 
