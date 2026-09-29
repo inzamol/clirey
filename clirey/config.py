@@ -62,10 +62,14 @@ class ClireyConfig(BaseModel):
             if val and val.strip():
                 return val.strip()
 
-        # Check for config files (.clirey.json or ~/.clirey.json)
-        local_cfg = Path(".clirey.json")
-        home_cfg = Path.home() / ".clirey.json"
-        for p in [local_cfg, home_cfg]:
+        # Check for config files (.clirey.json, .celirey.json or ~/.clirey.json)
+        config_candidates = [
+            Path(".clirey.json"),
+            Path(".celirey.json"),
+            Path.home() / ".clirey.json",
+            Path.home() / ".celirey.json",
+        ]
+        for p in config_candidates:
             if p.exists() and p.is_file():
                 try:
                     import json

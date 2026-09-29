@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 class BrokerInspector:
     """Inspects pending queue message depths directly from the broker."""
 
-    def __init__(self, broker_url: str):
+    def __init__(self, broker_url: str, key_prefix: Optional[str] = None):
         self.broker_url = broker_url
+        self.key_prefix = key_prefix or ""
         self.parsed = urlparse(broker_url)
         self.scheme = self.parsed.scheme.lower() if self.parsed.scheme else ""
 
@@ -44,7 +45,8 @@ class BrokerInspector:
                 r = redis.from_url(self.broker_url, socket_timeout=2.0)
                 pipe = r.pipeline()
                 for q in queue_names:
-                    pipe.llen(q)
+                    redis_key = f"{self.key_prefix}{q}"
+                    pipe.llen(redis_key)
                 results = pipe.execute()
                 for q, count in zip(queue_names, results):
                     depths[q] = int(count) if count is not None else 0
@@ -52,6 +54,7 @@ class BrokerInspector:
             except Exception as e:
                 logger.debug(f"Redis queue depth inspection error: {e}")
                 return depths
+
 
         if self.is_amqp():
             try:
@@ -96,21 +99,35 @@ class BrokerInspector:
             try:
                 import redis
 
-                r = redis.from_url(self.broker_url, socket_timeout=2.0)
-                # Scan for standard Celery list keys
-                for key in r.scan_iter(match="*", count=100):
+                r = redis.from_url(self.broker_url, socket_timeout=1.0, socket_connect_timeout=1.0)
+                scan_pattern = f"{self.key_prefix}*" if self.key_prefix else "*"
+                scanned = 0
+                keys_to_check = []
+                for key in r.scan_iter(match=scan_pattern, count=100):
                     key_str = key.decode("utf-8") if isinstance(key, bytes) else str(key)
-                    # Ignore Celery internal event/unack/set keys
                     if (
                         key_str.startswith("_kombu")
                         or "celery-task-meta" in key_str
-                        or key_str.startswith("celery.pidbox")
+                        or "celery.pidbox" in key_str
+                        or key_str.startswith("celeryev.")
                     ):
                         continue
-                    key_type = r.type(key)
-                    type_str = key_type.decode("utf-8") if isinstance(key_type, bytes) else str(key_type)
-                    if type_str == "list":
-                        discovered.add(key_str)
+                    keys_to_check.append(key_str)
+                    scanned += 1
+                    if scanned >= 100:
+                        break
+
+                if keys_to_check:
+                    pipe = r.pipeline()
+                    for k in keys_to_check:
+                        pipe.type(k)
+                    types = pipe.execute()
+                    for k, t in zip(keys_to_check, types):
+                        t_str = t.decode("utf-8") if isinstance(t, bytes) else str(t)
+                        if t_str == "list":
+                            # Strip key prefix if present for clean display
+                            clean_name = k[len(self.key_prefix):] if self.key_prefix and k.startswith(self.key_prefix) else k
+                            discovered.add(clean_name)
             except Exception:
                 pass
         return list(discovered) or ["celery"]

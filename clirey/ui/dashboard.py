@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import datetime
+import threading
 import time
-from typing import Optional
+from typing import List, Optional
 
 from rich import box
 from rich.align import Align
@@ -16,6 +17,7 @@ from rich.text import Text
 from clirey.config import mask_broker_url
 from clirey.core.client import CeleryClient
 from clirey.core.events import EventMonitor
+from clirey.core.models import QueueInfo, TaskInfo, WorkerInfo
 from clirey.ui.console import console
 from clirey.ui.tables import (
     create_events_table,
@@ -33,12 +35,24 @@ class Dashboard:
         broker_url: str,
         backend_url: Optional[str] = None,
         refresh_rate: float = 1.5,
+        key_prefix: Optional[str] = None,
+        task_prefix: Optional[str] = None,
     ):
         self.broker_url = broker_url
         self.masked_url = mask_broker_url(broker_url)
         self.refresh_rate = refresh_rate
-        self.client = CeleryClient(broker_url, backend_url=backend_url)
+        self.key_prefix = key_prefix
+        self.task_prefix = task_prefix
+        self.client = CeleryClient(broker_url, backend_url=backend_url, key_prefix=key_prefix)
         self.event_monitor = EventMonitor(self.client)
+
+        self.workers_cache: List[WorkerInfo] = []
+        self.active_tasks_cache: List[TaskInfo] = []
+        self.queues_cache: List[QueueInfo] = []
+        self.cache_lock = threading.Lock()
+
+        self._running = False
+        self._inspector_thread: Optional[threading.Thread] = None
 
     def _make_header(self, workers, active_tasks, overview) -> Panel:
         """Construct top stats banner."""
@@ -140,55 +154,86 @@ class Dashboard:
 
         return layout
 
+    def _inspector_loop(self) -> None:
+        """Background thread for periodic cluster inspection without blocking UI rendering."""
+        inspect_interval = max(2.0, self.refresh_rate)
+        while self._running:
+            try:
+                workers, tasks, queues = self.client.inspect_cluster()
+                with self.cache_lock:
+                    self.workers_cache = workers
+                    self.active_tasks_cache = tasks
+                    self.queues_cache = queues
+            except Exception:
+                pass
+
+            # Sleep in short increments so we can exit quickly when stopped
+            slept = 0.0
+            while self._running and slept < inspect_interval:
+                time.sleep(0.2)
+                slept += 0.2
+
     def run(self) -> None:
         """Start the interactive live dashboard loop."""
-        console.print("[bold cyan]Connecting to Celery broker and starting event listener...[/]")
+        self._running = True
         self.event_monitor.start()
 
-        # Cache inspection data to avoid slow network latency blocking UI every frame
-        workers_cache = []
-        active_tasks_cache = []
-        queues_cache = []
-        last_inspect_time = 0.0
-        inspect_interval = max(2.0, self.refresh_rate)
+        self._inspector_thread = threading.Thread(
+            target=self._inspector_loop,
+            daemon=True,
+            name="ClireyClusterInspector",
+        )
+        self._inspector_thread.start()
 
         try:
             with Live(console=console, screen=True, refresh_per_second=4) as live:
+                # Immediate initial frame render
+                overview = self.event_monitor.get_cluster_overview()
+                layout = self.build_layout([], [], [], [], overview)
+                live.update(layout)
+
                 while True:
-                    now = time.time()
+                    with self.cache_lock:
+                        workers = list(self.workers_cache)
+                        active_tasks = list(self.active_tasks_cache)
+                        queues = list(self.queues_cache)
 
-                    # Periodic full inspection
-                    if (now - last_inspect_time) >= inspect_interval:
-                        try:
-                            workers_cache = self.client.get_workers()
-                            active_tasks_cache = self.client.get_active_tasks()
-                            queues_cache = self.client.get_queues()
-                        except Exception:
-                            pass
-                        last_inspect_time = now
-
-                    # Combine with real-time events state
+                    # Merge active tasks from real-time events
                     event_tasks = self.event_monitor.get_active_tasks()
-                    # Merge active tasks
-                    seen_ids = {t.task_id for t in active_tasks_cache}
+                    seen_ids = {t.task_id for t in active_tasks}
                     for et in event_tasks:
                         if et.task_id not in seen_ids:
-                            active_tasks_cache.append(et)
+                            active_tasks.append(et)
+
+                    # Filter by task prefix if requested
+                    display_tasks = active_tasks
+                    if self.task_prefix:
+                        display_tasks = [t for t in display_tasks if t.name.startswith(self.task_prefix)]
 
                     recent_events = self.event_monitor.get_recent_events(count=15)
+                    if self.task_prefix:
+                        recent_events = [
+                            e for e in recent_events if (e.task_name and e.task_name.startswith(self.task_prefix))
+                        ]
+
                     overview = self.event_monitor.get_cluster_overview()
+                    if overview.total_workers == 0 and workers:
+                        overview.total_workers = len(workers)
+                        overview.online_workers = sum(1 for w in workers if w.is_online)
 
                     layout = self.build_layout(
-                        workers_cache,
-                        active_tasks_cache,
-                        queues_cache,
+                        workers,
+                        display_tasks,
+                        queues,
                         recent_events,
                         overview,
                     )
                     live.update(layout)
                     time.sleep(self.refresh_rate)
+
         except KeyboardInterrupt:
             pass
         finally:
+            self._running = False
             self.event_monitor.stop()
             console.print("[bold yellow]Clirey monitor stopped.[/]")

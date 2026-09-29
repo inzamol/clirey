@@ -36,7 +36,7 @@ class EventMonitor:
         self.state = State()
         self.events_buffer: Deque[EventRecord] = collections.deque(maxlen=max_events)
         self.tasks_map: Dict[str, TaskInfo] = {}
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
         # Throughput counters
         self.event_timestamps: Deque[float] = collections.deque(maxlen=500)
@@ -52,7 +52,6 @@ class EventMonitor:
         if self._running:
             return
         self._running = True
-        self.client.enable_events()
         self._thread = threading.Thread(target=self._run_receiver, daemon=True, name="ClireyEventReceiver")
         self._thread.start()
 
@@ -62,6 +61,11 @@ class EventMonitor:
 
     def _run_receiver(self) -> None:
         """Background thread main loop for capturing events."""
+        try:
+            self.client.enable_events()
+        except Exception:
+            pass
+
         while self._running:
             try:
                 with self.app.connection_for_read() as connection:
@@ -70,14 +74,9 @@ class EventMonitor:
                         app=self.app,
                         handlers={"*": self._handle_event},
                     )
-                    while self._running:
-                        try:
-                            # Drain events with a 1 second timeout
-                            recv.drain_nowait()
-                            time.sleep(0.05)
-                        except (AttributeError, Exception):
-                            # If no messages ready, wait briefly
-                            time.sleep(0.2)
+                    for _ in recv.itercapture(limit=None, timeout=1.0, wakeup=True):
+                        if not self._running:
+                            break
             except Exception as e:
                 logger.debug(f"Event receiver connection error: {e}")
                 time.sleep(1.0)
@@ -86,7 +85,17 @@ class EventMonitor:
         """Process an individual event dictionary from Celery."""
         try:
             now = time.time()
-            self.state.event(event)
+            if "timestamp" not in event:
+                event["timestamp"] = now
+            if "clock" not in event:
+                event["clock"] = 0
+            if "local_received" not in event:
+                event["local_received"] = now
+
+            try:
+                self.state.event(event)
+            except Exception as e:
+                logger.debug(f"Celery State update error: {e}")
 
             event_type = event.get("type", "unknown")
             uuid = event.get("uuid") or event.get("task_id")

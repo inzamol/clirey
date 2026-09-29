@@ -136,11 +136,29 @@ def cmd_top(
         "-r",
         help="Dashboard refresh interval in seconds",
     ),
+    prefix: Optional[str] = typer.Option(
+        None,
+        "--prefix",
+        "-p",
+        help="Filter dashboard tasks and events by task name prefix (e.g. 'myapp.tasks.' or 'billing.')",
+    ),
+    key_prefix: Optional[str] = typer.Option(
+        None,
+        "--key-prefix",
+        help="Redis global_keyprefix if configured in Celery broker_transport_options",
+    ),
 ):
     """Launch the real-time interactive TUI dashboard."""
     broker_url = get_resolved_broker(broker)
-    dashboard = Dashboard(broker_url=broker_url, backend_url=backend, refresh_rate=refresh)
+    dashboard = Dashboard(
+        broker_url=broker_url,
+        backend_url=backend,
+        refresh_rate=refresh,
+        key_prefix=key_prefix,
+        task_prefix=prefix,
+    )
     dashboard.run()
+
 
 
 @app.command(name="demo")
@@ -196,11 +214,22 @@ def cmd_tasks(
         "-t",
         help="Task type to display: all, active, scheduled, reserved",
     ),
+    prefix: Optional[str] = typer.Option(
+        None,
+        "--prefix",
+        "-p",
+        help="Filter tasks by task name prefix (e.g. 'myapp.tasks.' or 'billing.')",
+    ),
+    key_prefix: Optional[str] = typer.Option(
+        None,
+        "--key-prefix",
+        help="Redis global_keyprefix if configured in Celery broker_transport_options",
+    ),
     timeout: float = typer.Option(3.0, "--timeout", help="Timeout in seconds"),
 ):
     """List currently active, scheduled, or reserved tasks across the cluster."""
     broker_url = get_resolved_broker(broker)
-    client = CeleryClient(broker_url=broker_url, timeout=timeout)
+    client = CeleryClient(broker_url=broker_url, timeout=timeout, key_prefix=key_prefix)
 
     with console.status("[bold cyan]Fetching tasks from workers...[/]", spinner="dots"):
         active = client.get_active_tasks() if filter_type in ("all", "active") else []
@@ -208,8 +237,12 @@ def cmd_tasks(
         reserved = client.get_reserved_tasks() if filter_type in ("all", "reserved") else []
 
     all_tasks = active + scheduled + reserved
+    if prefix:
+        all_tasks = [t for t in all_tasks if t.name.startswith(prefix)]
+
     if not all_tasks:
-        console.print("[yellow]No tasks currently running or queued in workers.[/]")
+        prefix_msg = f" matching prefix '{prefix}'" if prefix else ""
+        console.print(f"[yellow]No tasks currently running or queued in workers{prefix_msg}.[/]")
         return
 
     table = create_tasks_table(all_tasks, title=f"Celery Tasks ({len(all_tasks)} found)")
@@ -219,11 +252,16 @@ def cmd_tasks(
 @app.command(name="queues")
 def cmd_queues(
     broker: Optional[str] = typer.Option(None, "--broker", "-b", help="Celery broker URL"),
+    key_prefix: Optional[str] = typer.Option(
+        None,
+        "--key-prefix",
+        help="Redis global_keyprefix if configured in Celery broker_transport_options",
+    ),
     timeout: float = typer.Option(3.0, "--timeout", help="Timeout in seconds"),
 ):
     """Inspect broker queue backlog depths and active worker subscriptions."""
     broker_url = get_resolved_broker(broker)
-    client = CeleryClient(broker_url=broker_url, timeout=timeout)
+    client = CeleryClient(broker_url=broker_url, timeout=timeout, key_prefix=key_prefix)
 
     with console.status("[bold cyan]Querying queues and broker backlog...[/]", spinner="dots"):
         queues = client.get_queues()
@@ -235,17 +273,32 @@ def cmd_queues(
 @app.command(name="events")
 def cmd_events(
     broker: Optional[str] = typer.Option(None, "--broker", "-b", help="Celery broker URL"),
+    prefix: Optional[str] = typer.Option(
+        None,
+        "--prefix",
+        "-p",
+        help="Filter events by task name prefix (e.g. 'myapp.tasks.' or 'billing.')",
+    ),
+    key_prefix: Optional[str] = typer.Option(
+        None,
+        "--key-prefix",
+        help="Redis global_keyprefix if configured in Celery broker_transport_options",
+    ),
 ):
     """Stream real-time Celery events to standard output."""
     broker_url = get_resolved_broker(broker)
-    console.print(f"[bold cyan]Streaming live Celery events from:[/] {mask_broker_url(broker_url)}")
+    prefix_note = f" [filter: prefix='{prefix}']" if prefix else ""
+    console.print(f"[bold cyan]Streaming live Celery events from:[/] {mask_broker_url(broker_url)}{prefix_note}")
     console.print("[dim]Press Ctrl+C to stop streaming.\n[/]")
 
-    client = CeleryClient(broker_url=broker_url)
+    client = CeleryClient(broker_url=broker_url, key_prefix=key_prefix)
 
     def on_event(ev):
-        t_str = time.strftime("%H:%M:%S", time.localtime(ev.timestamp))
         task_name = ev.task_name or "unknown"
+        if prefix and not task_name.startswith(prefix):
+            return
+
+        t_str = time.strftime("%H:%M:%S", time.localtime(ev.timestamp))
         tid = f"[{ev.task_id[:8]}]" if ev.task_id else ""
         dur = f"({ev.runtime:.2f}s)" if ev.runtime is not None else ""
         worker = f"@{ev.worker}" if ev.worker else ""
@@ -266,6 +319,7 @@ def cmd_events(
     except KeyboardInterrupt:
         monitor.stop()
         console.print("\n[yellow]Stopped event stream.[/]")
+
 
 
 @app.command(name="ping")
