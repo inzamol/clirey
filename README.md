@@ -40,7 +40,7 @@ pip install clirey
 pip install "clirey[redis]"
 
 # For development / from source
-git clone https://github.com/inzam/clirey.git
+git clone https://github.com/inzamol/clirey.git
 cd clirey
 pip install -e .
 ```
@@ -239,8 +239,7 @@ clirey demo
 pytest
 ```
 
----
-
 ## License
 
-MIT License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+

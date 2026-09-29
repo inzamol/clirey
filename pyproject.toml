@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clirey"
-version = "0.1.1"
+version = "0.1.2"
 description = "A powerful CLI & live terminal monitor for Celery with just a broker URL"
 
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
 authors = [
-    { name = "Inzam", email = "your-email@example.com" }
+    { name = "Inzamul Hoque", email = "inzamol@gmail.com" }
 ]
 keywords = ["celery", "cli", "monitoring", "redis", "rabbitmq", "tui", "rich", "dashboard"]
 classifiers = [
@@ -41,10 +41,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/inzam/clirey"
-Documentation = "https://github.com/inzam/clirey#readme"
-Repository = "https://github.com/inzam/clirey"
-Issues = "https://github.com/inzam/clirey/issues"
+Homepage = "https://github.com/inzamol/clirey"
+Documentation = "https://github.com/inzamol/clirey"
+Repository = "https://github.com/inzamol/clirey"
+Issues = "https://github.com/inzamol/clirey/issues"
 
 [project.scripts]
 clirey = "clirey.cli:main"
