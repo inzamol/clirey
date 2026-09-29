@@ -1,6 +1,7 @@
 """Tests for Dashboard layout rendering, background inspection, and event monitor."""
 
 import time
+
 from clirey.core.client import CeleryClient
 from clirey.core.events import EventMonitor
 from clirey.core.models import ClusterOverview, EventRecord, QueueInfo, TaskInfo, WorkerInfo
