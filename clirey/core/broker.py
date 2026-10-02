@@ -55,7 +55,6 @@ class BrokerInspector:
                 logger.debug(f"Redis queue depth inspection error: {e}")
                 return depths
 
-
         if self.is_amqp():
             try:
                 with Connection(self.broker_url, connect_timeout=2.0) as conn:
@@ -100,8 +99,9 @@ class BrokerInspector:
         if not scheme.startswith("redis"):
             return None
         try:
-            import redis
             from collections import Counter
+
+            import redis
 
             r = redis.from_url(broker_url, socket_timeout=1.0, socket_connect_timeout=1.0)
             candidates = []
@@ -170,9 +170,7 @@ class BrokerInspector:
                         if t_str == "list":
                             # Strip key prefix if present for clean display
                             clean_name = (
-                                k[len(self.key_prefix) :]
-                                if self.key_prefix and k.startswith(self.key_prefix)
-                                else k
+                                k[len(self.key_prefix) :] if self.key_prefix and k.startswith(self.key_prefix) else k
                             )
                             discovered.add(clean_name)
             except Exception:

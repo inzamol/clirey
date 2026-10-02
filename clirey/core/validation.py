@@ -94,9 +94,7 @@ def validate_task_id(task_id: Optional[str]) -> Tuple[bool, str]:
     tid = task_id.strip()
 
     # Standard UUID format check (8-4-4-4-12) or generic string
-    uuid_pattern = re.compile(
-        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-    )
+    uuid_pattern = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
     if uuid_pattern.match(tid):
         return True, "Valid UUID task ID."
 
@@ -122,9 +120,7 @@ def validate_rate_limit(rate_limit: Optional[str]) -> Tuple[bool, str]:
     return True, f"Valid rate limit '{rate_limit}'."
 
 
-def test_broker_connectivity(
-    broker_url: str, timeout: float = 3.0
-) -> Tuple[bool, str, Dict[str, Any]]:
+def test_broker_connectivity(broker_url: str, timeout: float = 3.0) -> Tuple[bool, str, Dict[str, Any]]:
     """Perform preflight network and protocol connectivity test to the broker.
 
     Returns:

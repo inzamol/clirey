@@ -44,4 +44,3 @@ def test_resolve_key_prefix_json_env(monkeypatch):
     monkeypatch.delenv("CELERY_GLOBAL_KEYPREFIX", raising=False)
     monkeypatch.setenv("CELERY_BROKER_TRANSPORT_OPTIONS", '{"global_keyprefix": "env_prefix_"}')
     assert ClireyConfig.resolve_key_prefix(None) == "env_prefix_"
-

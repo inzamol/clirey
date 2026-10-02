@@ -75,7 +75,6 @@ def format_worker_status(status: str) -> str:
     return f"[yellow]{status}[/]"
 
 
-
 def format_duration(seconds: Optional[float]) -> str:
     """Format duration nicely in human readable format."""
     if seconds is None:

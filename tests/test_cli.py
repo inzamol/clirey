@@ -31,11 +31,14 @@ def test_cli_tasks_no_cluster():
 
 
 def test_cli_key_prefix_flags():
-    result = runner.invoke(app, ["workers", "--broker", "redis://127.0.0.1:9999/0", "--key-prefix", "my_app_", "--timeout", "0.5"])
+    result = runner.invoke(
+        app, ["workers", "--broker", "redis://127.0.0.1:9999/0", "--key-prefix", "my_app_", "--timeout", "0.5"]
+    )
     assert result.exit_code == 0
     assert "No Celery workers responded" in result.output
 
-    result_alias = runner.invoke(app, ["workers", "--broker", "redis://127.0.0.1:9999/0", "--global-keyprefix", "my_app_", "--timeout", "0.5"])
+    result_alias = runner.invoke(
+        app, ["workers", "--broker", "redis://127.0.0.1:9999/0", "--global-keyprefix", "my_app_", "--timeout", "0.5"]
+    )
     assert result_alias.exit_code == 0
     assert "No Celery workers responded" in result_alias.output
-

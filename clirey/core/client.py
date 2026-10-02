@@ -63,7 +63,6 @@ class CeleryClient:
         app.conf.update(**conf_updates)
         return app
 
-
     def ping(self) -> Dict[str, Any]:
         """Ping active Celery workers."""
         try:

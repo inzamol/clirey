@@ -32,9 +32,7 @@ def test_dashboard_build_layout():
             duration=1.5,
         )
     ]
-    queues = [
-        QueueInfo(name="celery", consumer_count=1, pending_messages=5, workers=["celery@worker-test"])
-    ]
+    queues = [QueueInfo(name="celery", consumer_count=1, pending_messages=5, workers=["celery@worker-test"])]
     events = [
         EventRecord(
             timestamp=time.time(),
@@ -67,33 +65,39 @@ def test_event_monitor_handling():
     monitor = EventMonitor(client)
 
     # Simulate task-received
-    monitor._handle_event({
-        "type": "task-received",
-        "uuid": "test-task-1",
-        "name": "tasks.process_data",
-        "hostname": "celery@node1",
-        "args": "('foo',)",
-    })
+    monitor._handle_event(
+        {
+            "type": "task-received",
+            "uuid": "test-task-1",
+            "name": "tasks.process_data",
+            "hostname": "celery@node1",
+            "args": "('foo',)",
+        }
+    )
     assert "test-task-1" in monitor.tasks_map
     assert monitor.tasks_map["test-task-1"].state == "RECEIVED"
 
     # Simulate task-started
-    monitor._handle_event({
-        "type": "task-started",
-        "uuid": "test-task-1",
-        "name": "tasks.process_data",
-        "hostname": "celery@node1",
-    })
+    monitor._handle_event(
+        {
+            "type": "task-started",
+            "uuid": "test-task-1",
+            "name": "tasks.process_data",
+            "hostname": "celery@node1",
+        }
+    )
     assert monitor.tasks_map["test-task-1"].state == "STARTED"
     assert len(monitor.get_active_tasks()) == 1
 
     # Simulate task-succeeded
-    monitor._handle_event({
-        "type": "task-succeeded",
-        "uuid": "test-task-1",
-        "hostname": "celery@node1",
-        "runtime": 0.35,
-    })
+    monitor._handle_event(
+        {
+            "type": "task-succeeded",
+            "uuid": "test-task-1",
+            "hostname": "celery@node1",
+            "runtime": 0.35,
+        }
+    )
     assert monitor.tasks_map["test-task-1"].state == "SUCCESS"
     assert monitor.tasks_map["test-task-1"].runtime == 0.35
     assert len(monitor.get_active_tasks()) == 0

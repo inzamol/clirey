@@ -109,16 +109,22 @@ def cmd_validate(
 
     if pings:
         worker_count = len(pings)
-        console.print(f"  [bold green][OK][/] [bold green]Worker Cluster:[/] Found {worker_count} active worker(s) ({ping_latency:.1f}ms)")
+        console.print(
+            f"  [bold green][OK][/] [bold green]Worker Cluster:[/] Found {worker_count} active worker(s) ({ping_latency:.1f}ms)"
+        )
         for w_name in pings:
             console.print(f"     - [cyan]{w_name}[/]")
     else:
-        console.print("  [bold yellow][WARN][/] [bold yellow]Worker Cluster:[/] Broker is reachable, but 0 workers responded (workers may be stopped or idle).")
+        console.print(
+            "  [bold yellow][WARN][/] [bold yellow]Worker Cluster:[/] Broker is reachable, but 0 workers responded (workers may be stopped or idle)."
+        )
 
     # Step 4: Queue Discovery
     queues = client.get_queues()
     queue_names = [q.name for q in queues]
-    console.print(f"  [bold green][OK][/] [bold green]Broker Queues:[/] {len(queues)} queue(s) detected: {', '.join(queue_names)}")
+    console.print(
+        f"  [bold green][OK][/] [bold green]Broker Queues:[/] {len(queues)} queue(s) detected: {', '.join(queue_names)}"
+    )
 
     console.print("\n[bold green]All preflight checks passed.[/] Ready to monitor with [bold cyan]clirey top[/].\n")
 
@@ -436,8 +442,6 @@ def cmd_revoke(
         res = client.revoke_task(task_id, terminate=terminate, signal=signal)
 
     console.print(f"[bold green][OK] Revoke broadcast sent.[/] Replies: {res}")
-
-
 
 
 def main():
