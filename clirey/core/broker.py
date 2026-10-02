@@ -92,6 +92,42 @@ class BrokerInspector:
 
         return depths
 
+    @classmethod
+    def auto_detect_key_prefix(cls, broker_url: str) -> Optional[str]:
+        """Attempt to auto-detect Redis global_keyprefix by inspecting kombu/celery keys."""
+        parsed = urlparse(broker_url)
+        scheme = parsed.scheme.lower() if parsed.scheme else ""
+        if not scheme.startswith("redis"):
+            return None
+        try:
+            import redis
+            from collections import Counter
+
+            r = redis.from_url(broker_url, socket_timeout=1.0, socket_connect_timeout=1.0)
+            candidates = []
+            scanned = 0
+            for key in r.scan_iter(count=50):
+                key_str = key.decode("utf-8") if isinstance(key, bytes) else str(key)
+                if "_kombu.binding." in key_str:
+                    candidates.append(key_str.split("_kombu.binding.", 1)[0])
+                elif "celery.pidbox" in key_str:
+                    candidates.append(key_str.split("celery.pidbox", 1)[0])
+                elif "celeryev" in key_str:
+                    candidates.append(key_str.split("celeryev", 1)[0])
+
+                scanned += 1
+                if scanned >= 100:
+                    break
+
+            if candidates:
+                counts = Counter(c for c in candidates if c)
+                if counts:
+                    most_common, _ = counts.most_common(1)[0]
+                    return most_common
+        except Exception as e:
+            logger.debug(f"Auto-detect key prefix error: {e}")
+        return None
+
     def discover_queues(self) -> List[str]:
         """Attempt to discover active queue names in the broker if supported."""
         discovered = set()
@@ -105,11 +141,18 @@ class BrokerInspector:
                 keys_to_check = []
                 for key in r.scan_iter(match=scan_pattern, count=100):
                     key_str = key.decode("utf-8") if isinstance(key, bytes) else str(key)
+                    # Strip key prefix if present to check standard Celery system keys
+                    base_key = (
+                        key_str[len(self.key_prefix) :]
+                        if (self.key_prefix and key_str.startswith(self.key_prefix))
+                        else key_str
+                    )
                     if (
-                        key_str.startswith("_kombu")
-                        or "celery-task-meta" in key_str
-                        or "celery.pidbox" in key_str
-                        or key_str.startswith("celeryev.")
+                        base_key.startswith("_kombu")
+                        or "celery-task-meta" in base_key
+                        or "celery.pidbox" in base_key
+                        or base_key.startswith("celeryev")
+                        or ".reply." in base_key
                     ):
                         continue
                     keys_to_check.append(key_str)
@@ -126,7 +169,11 @@ class BrokerInspector:
                         t_str = t.decode("utf-8") if isinstance(t, bytes) else str(t)
                         if t_str == "list":
                             # Strip key prefix if present for clean display
-                            clean_name = k[len(self.key_prefix):] if self.key_prefix and k.startswith(self.key_prefix) else k
+                            clean_name = (
+                                k[len(self.key_prefix) :]
+                                if self.key_prefix and k.startswith(self.key_prefix)
+                                else k
+                            )
                             discovered.add(clean_name)
             except Exception:
                 pass

@@ -24,10 +24,15 @@ class CeleryClient:
         key_prefix: Optional[str] = None,
         control_exchange: Optional[str] = None,
         event_exchange: Optional[str] = None,
+        auto_detect_prefix: bool = True,
     ):
         self.broker_url = broker_url
         self.backend_url = backend_url
         self.timeout = timeout
+
+        if key_prefix is None and auto_detect_prefix:
+            key_prefix = BrokerInspector.auto_detect_key_prefix(broker_url)
+
         self.key_prefix = key_prefix
         self.control_exchange = control_exchange
         self.event_exchange = event_exchange
@@ -49,6 +54,7 @@ class CeleryClient:
         }
         if self.key_prefix:
             conf_updates["broker_transport_options"] = {"global_keyprefix": self.key_prefix}
+            conf_updates["result_backend_transport_options"] = {"global_keyprefix": self.key_prefix}
         if self.control_exchange:
             conf_updates["control_exchange"] = self.control_exchange
         if self.event_exchange:

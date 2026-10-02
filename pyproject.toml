@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clirey"
-version = "0.1.3"
+version = "0.1.4"
 description = "A powerful CLI & live terminal monitor for Celery with just a broker URL"
 
 readme = "README.md"
@@ -13,7 +13,7 @@ license = "MIT"
 authors = [
     { name = "Inzamul Hoque", email = "inzamol@gmail.com" }
 ]
-keywords = ["celery", "cli", "monitoring", "redis", "rabbitmq", "tui", "rich", "dashboard"]
+keywords = ["celery", "cli", "monitoring", "redis", "rabbitmq", "tui", "rich", "dashboard", "clirey", "flower"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -26,7 +26,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Topic :: System :: Monitoring",
+    "Topic :: System :: Monitoring :: Celery",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 
@@ -60,4 +60,7 @@ target-version = "py39"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
+
+[tool.qv.ignore]
+rules = ["DEP-003"]
 

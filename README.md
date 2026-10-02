@@ -47,25 +47,30 @@ pip install -e .
 
 ---
 
-## Broker URL Configuration
+## Broker URL & Key Prefix Configuration
 
-You can provide the broker URL in any of the following ways (in priority order):
+You can provide the broker URL and Redis key prefix in any of the following ways (in priority order):
 
-1. **CLI Option**: `--broker` or `-b`
+1. **CLI Option**: `--broker` (or `-b`), `--key-prefix` / `--global-keyprefix`
    ```bash
-   clirey top -b redis://:password@10.0.1.50:6379/0
+   clirey top -b redis://:password@10.0.1.50:6379/0 --key-prefix my_app_
    ```
-2. **Environment Variable**: `CELERY_BROKER_URL` or `CLIREY_BROKER_URL` or `REDIS_URL`
+2. **Environment Variables**:
+   - `CELERY_BROKER_URL` or `CLIREY_BROKER_URL` or `REDIS_URL`
+   - `CELERY_GLOBAL_KEYPREFIX` or `GLOBAL_KEYPREFIX` or `CLIREY_KEY_PREFIX` or `CELERY_BROKER_TRANSPORT_OPTIONS`
    ```bash
-   export CELERY_BROKER_URL="amqp://guest:guest@localhost:5672//"
+   export CELERY_BROKER_URL="redis://localhost:6379/0"
+   export CELERY_GLOBAL_KEYPREFIX="my_app_"
    clirey top
    ```
 3. **Config File (`.clirey.json` or `~/.clirey.json`)**:
    ```json
    {
-     "broker_url": "redis://localhost:6379/0"
+     "broker_url": "redis://localhost:6379/0",
+     "global_keyprefix": "my_app_"
    }
    ```
+4. **Auto-Detection**: If using Redis without specifying a prefix, Clirey automatically inspects Redis for Celery keys and discovers any active `global_keyprefix`.
 
 ---
 

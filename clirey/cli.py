@@ -62,10 +62,17 @@ def get_resolved_broker(broker: Optional[str]) -> str:
 @app.command(name="check")
 def cmd_validate(
     broker: Optional[str] = typer.Option(None, "--broker", "-b", help="Celery broker URL to check"),
+    key_prefix: Optional[str] = typer.Option(
+        None,
+        "--key-prefix",
+        "--global-keyprefix",
+        help="Redis global_keyprefix if configured in Celery broker_transport_options",
+    ),
     timeout: float = typer.Option(3.0, "--timeout", "-t", help="Connection timeout in seconds"),
 ):
     """Run preflight diagnostics and connectivity verification on the Celery broker."""
     raw_broker = ClireyConfig.resolve_broker_url(broker)
+    resolved_key_prefix = ClireyConfig.resolve_key_prefix(key_prefix)
     masked = mask_broker_url(raw_broker)
 
     console.print(f"\n[bold bright_cyan]Preflight Diagnostics for Broker:[/] {masked}\n")
@@ -91,7 +98,10 @@ def cmd_validate(
     console.print(f"  [bold green][OK][/] [bold green]Broker Reachability:[/] Connected successfully {latency_str}")
 
     # Step 3: Worker Ping Inspection
-    client = CeleryClient(broker_url=raw_broker, timeout=timeout)
+    client = CeleryClient(broker_url=raw_broker, timeout=timeout, key_prefix=resolved_key_prefix)
+    if client.key_prefix:
+        console.print(f"  [bold green][OK][/] [bold green]Key Prefix:[/] Using global_keyprefix='{client.key_prefix}'")
+
     with console.status("[bold cyan]Scanning for active workers...[/]", spinner="dots"):
         t_ping = time.perf_counter()
         pings = client.ping()
@@ -111,8 +121,6 @@ def cmd_validate(
     console.print(f"  [bold green][OK][/] [bold green]Broker Queues:[/] {len(queues)} queue(s) detected: {', '.join(queue_names)}")
 
     console.print("\n[bold green]All preflight checks passed.[/] Ready to monitor with [bold cyan]clirey top[/].\n")
-
-
 
 
 @app.command(name="top")
@@ -145,20 +153,21 @@ def cmd_top(
     key_prefix: Optional[str] = typer.Option(
         None,
         "--key-prefix",
+        "--global-keyprefix",
         help="Redis global_keyprefix if configured in Celery broker_transport_options",
     ),
 ):
     """Launch the real-time interactive TUI dashboard."""
     broker_url = get_resolved_broker(broker)
+    resolved_key_prefix = ClireyConfig.resolve_key_prefix(key_prefix)
     dashboard = Dashboard(
         broker_url=broker_url,
         backend_url=backend,
         refresh_rate=refresh,
-        key_prefix=key_prefix,
+        key_prefix=resolved_key_prefix,
         task_prefix=prefix,
     )
     dashboard.run()
-
 
 
 @app.command(name="demo")
@@ -179,14 +188,21 @@ def cmd_demo(
 @app.command(name="status")
 def cmd_workers(
     broker: Optional[str] = typer.Option(None, "--broker", "-b", help="Celery broker URL"),
+    key_prefix: Optional[str] = typer.Option(
+        None,
+        "--key-prefix",
+        "--global-keyprefix",
+        help="Redis global_keyprefix if configured in Celery broker_transport_options",
+    ),
     timeout: float = typer.Option(3.0, "--timeout", "-t", help="Timeout for worker inspection in seconds"),
 ):
     """List all connected Celery workers, pool concurrency, load, and stats."""
     broker_url = get_resolved_broker(broker)
+    resolved_key_prefix = ClireyConfig.resolve_key_prefix(key_prefix)
     console.print(f"[dim]Connecting to broker: {mask_broker_url(broker_url)}[/]")
 
     with console.status("[bold cyan]Inspecting Celery workers...[/]", spinner="dots"):
-        client = CeleryClient(broker_url=broker_url, timeout=timeout)
+        client = CeleryClient(broker_url=broker_url, timeout=timeout, key_prefix=resolved_key_prefix)
         workers = client.get_workers()
 
     if not workers:
@@ -194,7 +210,8 @@ def cmd_workers(
             Panel(
                 "[bold yellow]No Celery workers responded within timeout.[/]\n\n"
                 "• Check if workers are running and connected to this broker.\n"
-                "• Verify that the broker URL is reachable.",
+                "• Verify that the broker URL is reachable.\n"
+                "• If workers use a key prefix, specify [bold cyan]--key-prefix <prefix>[/] or set [bold cyan]global_keyprefix[/] in .clirey.json.",
                 title="[bold red]No Workers Detected[/]",
                 border_style="red",
             )
@@ -223,13 +240,15 @@ def cmd_tasks(
     key_prefix: Optional[str] = typer.Option(
         None,
         "--key-prefix",
+        "--global-keyprefix",
         help="Redis global_keyprefix if configured in Celery broker_transport_options",
     ),
     timeout: float = typer.Option(3.0, "--timeout", help="Timeout in seconds"),
 ):
     """List currently active, scheduled, or reserved tasks across the cluster."""
     broker_url = get_resolved_broker(broker)
-    client = CeleryClient(broker_url=broker_url, timeout=timeout, key_prefix=key_prefix)
+    resolved_key_prefix = ClireyConfig.resolve_key_prefix(key_prefix)
+    client = CeleryClient(broker_url=broker_url, timeout=timeout, key_prefix=resolved_key_prefix)
 
     with console.status("[bold cyan]Fetching tasks from workers...[/]", spinner="dots"):
         active = client.get_active_tasks() if filter_type in ("all", "active") else []
@@ -255,13 +274,15 @@ def cmd_queues(
     key_prefix: Optional[str] = typer.Option(
         None,
         "--key-prefix",
+        "--global-keyprefix",
         help="Redis global_keyprefix if configured in Celery broker_transport_options",
     ),
     timeout: float = typer.Option(3.0, "--timeout", help="Timeout in seconds"),
 ):
     """Inspect broker queue backlog depths and active worker subscriptions."""
     broker_url = get_resolved_broker(broker)
-    client = CeleryClient(broker_url=broker_url, timeout=timeout, key_prefix=key_prefix)
+    resolved_key_prefix = ClireyConfig.resolve_key_prefix(key_prefix)
+    client = CeleryClient(broker_url=broker_url, timeout=timeout, key_prefix=resolved_key_prefix)
 
     with console.status("[bold cyan]Querying queues and broker backlog...[/]", spinner="dots"):
         queues = client.get_queues()
@@ -282,16 +303,18 @@ def cmd_events(
     key_prefix: Optional[str] = typer.Option(
         None,
         "--key-prefix",
+        "--global-keyprefix",
         help="Redis global_keyprefix if configured in Celery broker_transport_options",
     ),
 ):
     """Stream real-time Celery events to standard output."""
     broker_url = get_resolved_broker(broker)
+    resolved_key_prefix = ClireyConfig.resolve_key_prefix(key_prefix)
     prefix_note = f" [filter: prefix='{prefix}']" if prefix else ""
     console.print(f"[bold cyan]Streaming live Celery events from:[/] {mask_broker_url(broker_url)}{prefix_note}")
     console.print("[dim]Press Ctrl+C to stop streaming.\n[/]")
 
-    client = CeleryClient(broker_url=broker_url, key_prefix=key_prefix)
+    client = CeleryClient(broker_url=broker_url, key_prefix=resolved_key_prefix)
 
     def on_event(ev):
         task_name = ev.task_name or "unknown"
@@ -321,15 +344,21 @@ def cmd_events(
         console.print("\n[yellow]Stopped event stream.[/]")
 
 
-
 @app.command(name="ping")
 def cmd_ping(
     broker: Optional[str] = typer.Option(None, "--broker", "-b", help="Celery broker URL"),
+    key_prefix: Optional[str] = typer.Option(
+        None,
+        "--key-prefix",
+        "--global-keyprefix",
+        help="Redis global_keyprefix if configured in Celery broker_transport_options",
+    ),
     timeout: float = typer.Option(3.0, "--timeout", help="Timeout in seconds"),
 ):
     """Ping active Celery workers and check response latency."""
     broker_url = get_resolved_broker(broker)
-    client = CeleryClient(broker_url=broker_url, timeout=timeout)
+    resolved_key_prefix = ClireyConfig.resolve_key_prefix(key_prefix)
+    client = CeleryClient(broker_url=broker_url, timeout=timeout, key_prefix=resolved_key_prefix)
 
     t0 = time.perf_counter()
     with console.status("[bold cyan]Pinging workers...[/]", spinner="dots"):
@@ -350,6 +379,12 @@ def cmd_task(
     task_id: str = typer.Argument(..., help="Celery task UUID to inspect"),
     broker: Optional[str] = typer.Option(None, "--broker", "-b", help="Celery broker URL"),
     backend: Optional[str] = typer.Option(None, "--backend", help="Optional result backend URL"),
+    key_prefix: Optional[str] = typer.Option(
+        None,
+        "--key-prefix",
+        "--global-keyprefix",
+        help="Redis global_keyprefix if configured in Celery broker_transport_options",
+    ),
 ):
     """Query a specific task across workers and result backend."""
     is_valid, msg = validate_task_id(task_id)
@@ -358,7 +393,8 @@ def cmd_task(
         raise typer.Exit(code=1)
 
     broker_url = get_resolved_broker(broker)
-    client = CeleryClient(broker_url=broker_url, backend_url=backend)
+    resolved_key_prefix = ClireyConfig.resolve_key_prefix(key_prefix)
+    client = CeleryClient(broker_url=broker_url, backend_url=backend, key_prefix=resolved_key_prefix)
 
     with console.status(f"[bold cyan]Querying task {task_id}...[/]", spinner="dots"):
         info = client.query_task(task_id)
@@ -370,6 +406,12 @@ def cmd_task(
 def cmd_revoke(
     task_id: str = typer.Argument(..., help="Celery task UUID to revoke"),
     broker: Optional[str] = typer.Option(None, "--broker", "-b", help="Celery broker URL"),
+    key_prefix: Optional[str] = typer.Option(
+        None,
+        "--key-prefix",
+        "--global-keyprefix",
+        help="Redis global_keyprefix if configured in Celery broker_transport_options",
+    ),
     terminate: bool = typer.Option(False, "--terminate", "-t", help="Terminate currently executing task process"),
     signal: str = typer.Option(
         "SIGTERM", "--signal", "-s", help="Signal to send when terminating (e.g. SIGTERM, SIGKILL)"
@@ -382,7 +424,8 @@ def cmd_revoke(
         raise typer.Exit(code=1)
 
     broker_url = get_resolved_broker(broker)
-    client = CeleryClient(broker_url=broker_url)
+    resolved_key_prefix = ClireyConfig.resolve_key_prefix(key_prefix)
+    client = CeleryClient(broker_url=broker_url, key_prefix=resolved_key_prefix)
 
     confirm = typer.confirm(f"Are you sure you want to revoke task '{task_id}' (terminate={terminate})?")
     if not confirm:

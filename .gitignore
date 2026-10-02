@@ -9,3 +9,6 @@ build/
 .coverage
 htmlcov/
 .clirey.json
+auto_scaller_d2i_task.py
+.celirey.json
+example_celery_app.py

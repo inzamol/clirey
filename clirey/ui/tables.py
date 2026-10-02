@@ -34,7 +34,7 @@ def create_workers_table(workers: List[WorkerInfo], title: Optional[str] = None)
     table.add_column("Processed", justify="right", style="green")
     table.add_column("Concurrency", justify="center")
     table.add_column("Pool", style="dim")
-    table.add_column("Load Avg (1, 5, 15m)", justify="center")
+    table.add_column("Load Avg", justify="center")
     table.add_column("Uptime", justify="right")
     table.add_column("Queues", style="yellow")
 

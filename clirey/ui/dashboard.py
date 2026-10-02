@@ -41,9 +41,9 @@ class Dashboard:
         self.broker_url = broker_url
         self.masked_url = mask_broker_url(broker_url)
         self.refresh_rate = refresh_rate
-        self.key_prefix = key_prefix
         self.task_prefix = task_prefix
         self.client = CeleryClient(broker_url, backend_url=backend_url, key_prefix=key_prefix)
+        self.key_prefix = self.client.key_prefix
         self.event_monitor = EventMonitor(self.client)
 
         self.workers_cache: List[WorkerInfo] = []
